@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import ApplicationServices
 
 private func observerCallback(
@@ -24,12 +25,21 @@ extension Accessibility {
     }
 
     public final class Observer {
-        public final class Token {
-            private let remove: () -> Void
+        public final class Token: Cancellable {
+            private var removeAction: (() -> Void)?
+            
             fileprivate init(remove: @escaping () -> Void) {
-                self.remove = remove
+                self.removeAction = remove
             }
-            deinit { remove() }
+            
+            public func cancel() {
+                self.removeAction?()
+                self.removeAction = nil
+            }
+            
+            deinit {
+                cancel()
+            }
         }
 
         public typealias Callback = (_ info: [AnyHashable: Any]) -> Void
@@ -38,7 +48,7 @@ extension Accessibility {
 
         // no need to retain the entire observer so long as the individual
         // tokens are retained
-        public init(pid: pid_t, on runLoop: RunLoop = .current) throws {
+        public init(pid: pid_t, on runLoop: RunLoop = .main) throws {
             var raw: AXObserver?
             try check(AXObserverCreateWithInfoCallback(pid, observerCallback, &raw))
             guard let raw = raw else {
@@ -80,15 +90,24 @@ extension Accessibility {
 }
 
 extension Accessibility.Element {
-
     // the token must be retained
     public func observe(
         _ notification: Accessibility.Notification,
-        on runLoop: RunLoop = .current,
+        on runLoop: RunLoop = .main,
         callback: @escaping Accessibility.Observer.Callback
     ) throws -> Accessibility.Observer.Token {
         try Accessibility.Observer(pid: pid(), on: runLoop)
             .observe(notification, for: self, callback: callback)
     }
 
+    public func publisher(
+        for notification: Accessibility.Notification,
+        on runLoop: RunLoop = .main,
+        callback: @escaping Accessibility.Observer.Callback
+    ) throws -> AnyCancellable {
+        let token = try Accessibility.Observer(pid: pid(), on: runLoop)
+            .observe(notification, for: self, callback: callback)
+        
+        return AnyCancellable(token)
+    }
 }
