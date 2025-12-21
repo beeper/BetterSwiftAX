@@ -105,7 +105,9 @@ public enum Accessibility {
         public typealias MutableAttributeName<T> = MutableAttribute<T>.Name
         public typealias ParameterizedAttributeName<Parameter, Return> = ParameterizedAttribute<Parameter, Return>.Name
 
-        init() {}
+        init() {
+            
+        }
     }
 
     public static func isTrusted(shouldPrompt: Bool = false) -> Bool {
