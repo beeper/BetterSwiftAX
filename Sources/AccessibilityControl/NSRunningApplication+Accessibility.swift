@@ -3,11 +3,11 @@ import WindowControl
 import Cocoa
 
 extension NSRunningApplication {
-    public var accessibilityElement: Accessibility.Element {
+    public var _accessibilityElement: Accessibility.Element {
         .init(pid: self.processIdentifier)
     }
     
-    public var accessibilityWindow: WindowControl.Window? {
-        try? self.accessibilityElement.window()
+    public var _accessibilityWindow: WindowControl.Window? {
+        try? self._accessibilityElement.window()
     }
 }

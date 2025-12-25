@@ -31,7 +31,7 @@ extension NSWorkspace.OpenConfiguration {
     }
     
     /// Wraps `_kLSOpenOptionBackgroundLaunchKey`
-    var launchesInBackground: Bool {
+    public var launchesInBackground: Bool {
         get {
             (additionalOptions[kBackgroundLaunchKey] as? Bool) ?? false
         }
@@ -43,7 +43,7 @@ extension NSWorkspace.OpenConfiguration {
     }
     
     /// Wraps `_kLSOpenOptionLaunchIsUserActionKey`
-    var launchIsUserAction: Bool {
+    public var launchIsUserAction: Bool {
         get {
             (additionalOptions[kLaunchIsUserActionKey] as? Bool) ?? false
         }
