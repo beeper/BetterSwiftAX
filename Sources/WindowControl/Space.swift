@@ -93,7 +93,7 @@ public class Space: Hashable {
         destroyWhenDone: Bool = true,
         display: Display = .main,
         connection: GraphicsConnection = .main
-    ) throws {
+    ) {
         isUnknownKind = kind == .unknown
         var values: [String: Any] = [
             // "wsid": 1234 as CFNumber, // Compat ID, can be used with SLSMoveWorkspaceWindowList(conn, {windowID}, 1, wsid)
