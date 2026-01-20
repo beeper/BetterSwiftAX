@@ -1,24 +1,29 @@
-import Foundation
-import Combine
+import AppKit
 import ApplicationServices
+import Combine
+import Foundation
 
 private func observerCallback(
     observer _: AXObserver,
-    element _: AXUIElement,
+    element: AXUIElement,
     notification _: CFString,
     info: CFDictionary,
     context: UnsafeMutableRawPointer?
 ) {
     guard let context = context else { return }
+    var dict = info as? [AnyHashable: Any] ?? [:]
+    // Include the element that triggered the notification
+    dict["AXUIElement"] = Accessibility.Element(raw: element)
     Unmanaged<Box<Accessibility.Observer.Callback>>
         .fromOpaque(context)
         .takeUnretainedValue()
-        .value(info as? [AnyHashable: Any] ?? [:])
+        .value(dict)
 }
 
 extension Accessibility {
     public struct Notification: AccessibilityPhantomName {
         public let value: String
+        
         public init(_ value: String) {
             self.value = value
         }
@@ -68,8 +73,18 @@ extension Accessibility {
             for element: Element,
             callback: @escaping Callback
         ) throws -> Token {
+            let notification = try NSAccessibility.Notification(from: notification)
+            
+            return try observe(notification, for: element, callback: callback)
+        }
+        
+        public func observe(
+            _ notification: NSAccessibility.Notification,
+            for element: Element,
+            callback: @escaping Callback
+        ) throws -> Token {
             let callback = Box(callback)
-            let cfNotif = notification.value as CFString
+            let cfNotif = notification.rawValue as CFString
             try check(
                 AXObserverAddNotification(
                     raw,
@@ -89,10 +104,16 @@ extension Accessibility {
     }
 }
 
+extension NSAccessibility.Notification {
+    public init(from accessibilityNotification: Accessibility.Notification) {
+        self.init(rawValue: accessibilityNotification.value)
+    }
+}
+
 extension Accessibility.Element {
     // the token must be retained
     public func observe(
-        _ notification: Accessibility.Notification,
+        _ notification: NSAccessibility.Notification,
         on runLoop: RunLoop = .main,
         callback: @escaping Accessibility.Observer.Callback
     ) throws -> Accessibility.Observer.Token {
@@ -101,7 +122,7 @@ extension Accessibility.Element {
     }
 
     public func publisher(
-        for notification: Accessibility.Notification,
+        for notification: NSAccessibility.Notification,
         on runLoop: RunLoop = .main,
         callback: @escaping Accessibility.Observer.Callback
     ) throws -> AnyCancellable {
