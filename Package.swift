@@ -1,10 +1,10 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.11
 
 import PackageDescription
 
 let package = Package(
     name: "BetterSwiftAX",
-    platforms: [.macOS(.v10_15)],
+    platforms: [.macOS(.v13)],
     products: [
         .library(
             name: "BetterSwiftAX",
@@ -33,7 +33,7 @@ let package = Package(
             name: "AccessibilityControl",
             dependencies: ["CAccessibilityControl", "WindowControl"]
         ),
-        .target(
+        .executableTarget(
             name: "axdump",
             dependencies: [
                 "AccessibilityControl",

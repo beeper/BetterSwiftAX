@@ -73,9 +73,11 @@ extension Accessibility {
             for element: Element,
             callback: @escaping Callback
         ) throws -> Token {
-            let notification = try NSAccessibility.Notification(from: notification)
-            
-            return try observe(notification, for: element, callback: callback)
+            return try observe(
+                NSAccessibility.Notification(from: notification),
+                for: element,
+                callback: callback
+            )
         }
         
         public func observe(
