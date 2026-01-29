@@ -9,11 +9,7 @@ let package = Package(
         .library(
             name: "BetterSwiftAX",
             targets: ["AccessibilityControl"]
-        ),
-        .executable(
-            name: "axdump",
-            targets: ["axdump"]
-        ),
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
@@ -32,13 +28,6 @@ let package = Package(
         .target(
             name: "AccessibilityControl",
             dependencies: ["CAccessibilityControl", "WindowControl"]
-        ),
-        .executableTarget(
-            name: "axdump",
-            dependencies: [
-                "AccessibilityControl",
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ]
-        ),
+        )
     ]
 )
