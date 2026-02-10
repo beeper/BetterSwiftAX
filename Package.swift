@@ -28,6 +28,25 @@ let package = Package(
         .target(
             name: "AccessibilityControl",
             dependencies: ["CAccessibilityControl", "WindowControl"]
+        ),
+        .executableTarget(
+            name: "AXConstantsGenerator",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
+        .plugin(
+            name: "GenerateAXConstants",
+            capability: .command(
+                intent: .custom(
+                    verb: "generate-ax-constants",
+                    description: "Regenerate AX constant Swift files from HIServices headers"
+                ),
+                permissions: [
+                    .writeToPackageDirectory(reason: "Writes generated Swift source files into Sources/AccessibilityControl")
+                ]
+            ),
+            dependencies: ["AXConstantsGenerator"]
         )
     ]
 )
