@@ -53,7 +53,7 @@ extension Accessibility {
 
         // no need to retain the entire observer so long as the individual
         // tokens are retained
-        public init(pid: pid_t, on runLoop: RunLoop = .main) throws {
+        public init(pid: pid_t, on runLoop: RunLoop = .current) throws {
             var raw: AXObserver?
             try check(AXObserverCreateWithInfoCallback(pid, observerCallback, &raw))
             guard let raw = raw else {
@@ -116,7 +116,7 @@ extension Accessibility.Element {
     // the token must be retained
     public func observe(
         _ notification: NSAccessibility.Notification,
-        on runLoop: RunLoop = .main,
+        on runLoop: RunLoop = .current,
         callback: @escaping Accessibility.Observer.Callback
     ) throws -> Accessibility.Observer.Token {
         try Accessibility.Observer(pid: pid(), on: runLoop)
@@ -125,7 +125,7 @@ extension Accessibility.Element {
 
     public func publisher(
         for notification: NSAccessibility.Notification,
-        on runLoop: RunLoop = .main,
+        on runLoop: RunLoop = .current,
         callback: @escaping Accessibility.Observer.Callback
     ) throws -> AnyCancellable {
         let token = try Accessibility.Observer(pid: pid(), on: runLoop)
