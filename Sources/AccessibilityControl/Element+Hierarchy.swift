@@ -5,7 +5,7 @@ import ApplicationServices
 
 /// Stable IPC protocol keys used by `AXUIElementCopyHierarchy`.
 /// These are hardcoded wire values — no runtime resolution needed.
-private enum HierarchyWireKey {
+private enum HierarchyKey {
     // Option keys
     static let arrayAttributes = "AXCHAA"
     static let skipInspection = "AXCHSIA"
@@ -80,22 +80,22 @@ extension Accessibility {
             var dict = [String: Any]()
 
             if let arrayAttributes {
-                dict[HierarchyWireKey.arrayAttributes] = arrayAttributes
+                dict[HierarchyKey.arrayAttributes] = arrayAttributes
             }
             if let skipInspectionAttributes {
-                dict[HierarchyWireKey.skipInspection] = skipInspectionAttributes
+                dict[HierarchyKey.skipInspection] = skipInspectionAttributes
             }
             if let maxArrayCount {
-                dict[HierarchyWireKey.maxArrayCount] = maxArrayCount
+                dict[HierarchyKey.maxArrayCount] = maxArrayCount
             }
             if let maxDepth {
-                dict[HierarchyWireKey.maxDepth] = maxDepth
+                dict[HierarchyKey.maxDepth] = maxDepth
             }
             if let returnAttributeErrors {
-                dict[HierarchyWireKey.returnErrors] = returnAttributeErrors
+                dict[HierarchyKey.returnErrors] = returnAttributeErrors
             }
             if let truncateStrings {
-                dict[HierarchyWireKey.truncateStrings] = truncateStrings
+                dict[HierarchyKey.truncateStrings] = truncateStrings
             }
 
             guard !dict.isEmpty else { return nil }
@@ -149,7 +149,7 @@ extension Accessibility {
             /// `true` for uninspectable sentinel entries (`{ "incmplt": true }`).
             public var isIncomplete: Bool {
                 raw.count == 1
-                    && (raw[HierarchyWireKey.incomplete] as? Bool) == true
+                    && (raw[HierarchyKey.incomplete] as? Bool) == true
             }
 
             /// Look up one attribute by name string.
@@ -177,22 +177,22 @@ extension Accessibility {
 
             /// The raw value for this attribute.
             public var value: Any? {
-                raw[HierarchyWireKey.value]
+                raw[HierarchyKey.value]
             }
 
             /// The value as an array, if it is one.
             public var arrayValue: [Any]? {
-                raw[HierarchyWireKey.value] as? [Any]
+                raw[HierarchyKey.value] as? [Any]
             }
 
             /// The value as a string, if it is one.
             public var stringValue: String? {
-                raw[HierarchyWireKey.value] as? String
+                raw[HierarchyKey.value] as? String
             }
 
             /// The value as element references, if applicable.
             public var elementValues: [Element]? {
-                guard let arr = raw[HierarchyWireKey.value] as? [AnyObject] else { return nil }
+                guard let arr = raw[HierarchyKey.value] as? [AnyObject] else { return nil }
                 let elements = arr.compactMap { Element(erased: $0 as CFTypeRef) }
                 guard elements.count == arr.count else { return nil }
                 return elements
@@ -200,18 +200,18 @@ extension Accessibility {
 
             /// True array count (may exceed `arrayValue.count` when capped by `maxArrayCount`).
             public var count: Int? {
-                (raw[HierarchyWireKey.count] as? NSNumber)?.intValue
+                (raw[HierarchyKey.count] as? NSNumber)?.intValue
             }
 
             /// Error code for this attribute (only present with `returnAttributeErrors`).
             public var error: AXError? {
-                guard let num = raw[HierarchyWireKey.error] as? NSNumber else { return nil }
+                guard let num = raw[HierarchyKey.error] as? NSNumber else { return nil }
                 return AXError(rawValue: num.int32Value)
             }
 
             /// Whether this entry represents an error.
             public var isError: Bool {
-                raw[HierarchyWireKey.error] != nil
+                raw[HierarchyKey.error] != nil
             }
         }
     }
