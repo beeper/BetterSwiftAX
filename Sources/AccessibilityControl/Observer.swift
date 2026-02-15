@@ -14,6 +14,7 @@ private func observerCallback(
     var dict = info as? [AnyHashable: Any] ?? [:]
     // Include the element that triggered the notification
     dict["AXUIElement"] = Accessibility.Element(raw: element)
+    
     Unmanaged<Box<Accessibility.Observer.Callback>>
         .fromOpaque(context)
         .takeUnretainedValue()
@@ -79,6 +80,14 @@ extension Accessibility {
                 callback: callback
             )
         }
+
+        public func observe(
+            _ notification: KeyPath<Notification.Type, Notification>,
+            for element: Element,
+            callback: @escaping Callback
+        ) throws -> Token {
+            try observe(Notification.self[keyPath: notification], for: element, callback: callback)
+        }
         
         public func observe(
             _ notification: NSAccessibility.Notification,
@@ -97,8 +106,7 @@ extension Accessibility {
                 )
             )
             return Token {
-                // we retain the observer here as well, to keep the run loop source
-                // around
+                // we retain the observer here as well, to keep the run loop source around
                 AXObserverRemoveNotification(self.raw, element.raw, cfNotif)
                 _ = callback
             }
@@ -115,12 +123,53 @@ extension NSAccessibility.Notification {
 extension Accessibility.Element {
     // the token must be retained
     public func observe(
+        _ notification: Accessibility.Notification,
+        on runLoop: RunLoop = .current,
+        callback: @escaping Accessibility.Observer.Callback
+    ) throws -> Accessibility.Observer.Token {
+        try Accessibility.Observer(pid: pid(), on: runLoop)
+            .observe(notification, for: self, callback: callback)
+    }
+
+    public func observe(
+        _ notification: KeyPath<Accessibility.Notification.Type, Accessibility.Notification>,
+        on runLoop: RunLoop = .current,
+        callback: @escaping Accessibility.Observer.Callback
+    ) throws -> Accessibility.Observer.Token {
+        try observe(Accessibility.Notification.self[keyPath: notification], on: runLoop, callback: callback)
+    }
+
+    // the token must be retained
+    public func observe(
         _ notification: NSAccessibility.Notification,
         on runLoop: RunLoop = .current,
         callback: @escaping Accessibility.Observer.Callback
     ) throws -> Accessibility.Observer.Token {
         try Accessibility.Observer(pid: pid(), on: runLoop)
             .observe(notification, for: self, callback: callback)
+    }
+
+    public func publisher(
+        for notification: Accessibility.Notification,
+        on runLoop: RunLoop = .current,
+        callback: @escaping Accessibility.Observer.Callback
+    ) throws -> AnyCancellable {
+        let token = try Accessibility.Observer(pid: pid(), on: runLoop)
+            .observe(notification, for: self, callback: callback)
+
+        return AnyCancellable(token)
+    }
+
+    public func publisher(
+        for notification: KeyPath<Accessibility.Notification.Type, Accessibility.Notification>,
+        on runLoop: RunLoop = .current,
+        callback: @escaping Accessibility.Observer.Callback
+    ) throws -> AnyCancellable {
+        try publisher(
+            for: Accessibility.Notification.self[keyPath: notification],
+            on: runLoop,
+            callback: callback
+        )
     }
 
     public func publisher(

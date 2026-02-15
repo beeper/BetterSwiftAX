@@ -1,19 +1,46 @@
 import CoreFoundation
-import os.log
+import Foundation
+import OSLog
 
-private let log = OSLog(subsystem: "com.betterswiftax", category: "accessibility")
+@available(macOS 11.0, *)
+private let accessibilityLogger = Logger(subsystem: "com.betterswiftax", category: "accessibility")
+
+private func logAccessibilityError(_ message: String) {
+    if #available(macOS 11.0, *) {
+        accessibilityLogger.error("\(message, privacy: .public)")
+    } else {
+        NSLog("%@", message)
+    }
+}
 
 public extension Accessibility.Element {
     var isValid: Bool {
-        (try? pid()) != nil
+        do {
+            _ = try pid()
+            return true
+        } catch {
+            logAccessibilityError("Failed to validate AX element pid for \(self): \(String(describing: error))")
+            return false
+        }
     }
 
     var isFrameValid: Bool {
-        (try? self.frame()) != nil
+        do {
+            _ = try self.frame()
+            return true
+        } catch {
+            logAccessibilityError("Failed to validate AX frame for \(self): \(String(describing: error))")
+            return false
+        }
     }
 
     var isInViewport: Bool {
-        (try? self.frame()) != CGRect.null
+        do {
+            return try self.frame() != CGRect.null
+        } catch {
+            logAccessibilityError("Failed to check viewport visibility for \(self): \(String(describing: error))")
+            return false
+        }
     }
 
     // - breadth-first, seems faster than dfs
@@ -26,7 +53,8 @@ public extension Accessibility.Element {
 
         return AnySequence(sequence(state: [self] as [Accessibility.Element]) { queue -> Accessibility.Element? in
             guard traversalComplexity < maxTraversalComplexity else {
-                os_log(.error, log: log, "HIT RECURSIVE TRAVERSAL COMPLEXITY LIMIT (%d > %d, queue count: %d), terminating early", traversalComplexity, maxTraversalComplexity, queue.count)
+                let queueCount = queue.count
+                logAccessibilityError("Recursive traversal complexity limit hit (\(traversalComplexity) >= \(maxTraversalComplexity), queue count: \(queueCount)); terminating early")
                 return nil
             }
 
@@ -37,9 +65,12 @@ public extension Accessibility.Element {
 
             let elt = queue.removeFirst()
 
-            if let children = try? elt.children() {
+            do {
+                let children = try elt.children()
                 defer { traversalComplexity += 1 }
                 queue.append(contentsOf: children)
+            } catch {
+                logAccessibilityError("Failed to fetch children for \(elt): \(String(describing: error))")
             }
             return elt
         })
@@ -49,8 +80,11 @@ public extension Accessibility.Element {
         AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
             guard !queue.isEmpty else { return nil }
             let elt = queue.removeFirst()
-            if let selectedChildren = try? elt.selectedChildren() {
+            do {
+                let selectedChildren = try elt.selectedChildren()
                 queue.append(contentsOf: selectedChildren)
+            } catch {
+                logAccessibilityError("Failed to fetch selected children for \(elt): \(String(describing: error))")
             }
             return elt
         })
@@ -63,23 +97,24 @@ public extension Accessibility.Element {
     }
 
     func setFrame(_ frame: CGRect) throws {
-        DispatchQueue.concurrentPerform(iterations: 2) { i in
-            switch i {
-            case 0:
-                try? self.position(assign: frame.origin)
-            case 1:
-                try? self.size(assign: frame.size)
-            default:
-                break
-            }
+        do {
+            try self.position(assign: frame.origin)
+            try self.size(assign: frame.size)
+        } catch {
+            logAccessibilityError("Failed to set frame for \(self): \(String(describing: error))")
+            
+            return error
         }
     }
 
     func closeWindow() throws {
-        guard let closeButton = try? self.windowCloseButton() else {
-            throw AccessibilityError(.failure)
+        do {
+            let closeButton = try self.windowCloseButton()
+            try closeButton.press()
+        } catch {
+            logAccessibilityError("Could not close window for \(self): \(String(describing: error))")
+            throw error
         }
-        try closeButton.press()
     }
 }
 
