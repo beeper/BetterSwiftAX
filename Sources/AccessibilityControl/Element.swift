@@ -125,3 +125,12 @@ extension Accessibility.Element {
         return .init(raw: id)
     }
 }
+
+
+// MARK: - Conformances
+
+extension Accessibility.Element: Equatable {
+    public static func == (lhs: Accessibility.Element, rhs: Accessibility.Element) -> Bool {
+        CFEqual(lhs.raw, rhs.raw)
+    }
+}

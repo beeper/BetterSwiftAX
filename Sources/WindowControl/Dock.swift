@@ -11,10 +11,10 @@ public enum Dock {
     static let bundleID = "com.apple.dock"
 
     public static var pid: pid_t? {
-        self.getApp()?.processIdentifier
+        self.runningApplication()?.processIdentifier
     }
 
-    public static func getApp() -> NSRunningApplication? {
+    public static func runningApplication() -> NSRunningApplication? {
         NSRunningApplication.runningApplications(withBundleIdentifier: Dock.bundleID).first
     }
 
@@ -29,7 +29,7 @@ public enum Dock {
         private func onDockTerminate() {
             debugLog("dock terminated")
             try? retry(withTimeout: 5, interval: 0.1) {
-                guard Dock.getApp() != nil else { throw ErrorMessage("Dock not running") } // we wait for a max of 5s for dock to relaunch
+                guard Dock.runningApplication() != nil else { throw ErrorMessage("Dock not running") } // we wait for a max of 5s for dock to relaunch
                 self.onExit()
                 try? self.observe()
             }
@@ -37,7 +37,7 @@ public enum Dock {
 
         private func observe() throws {
             try retry(withTimeout: 5, interval: 0.1) {
-                guard Dock.getApp() != nil, let pid = Dock.pid else { throw ErrorMessage("Dock not running") }
+                guard Dock.runningApplication() != nil, let pid = Dock.pid else { throw ErrorMessage("Dock not running") }
                 debugLog("observing dock exit with pid=\(pid)")
                 try Process.monitorExit(pid: pid, self.onDockTerminate)
             }

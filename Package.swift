@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.11
 
 import PackageDescription
 
@@ -9,7 +9,10 @@ let package = Package(
         .library(
             name: "BetterSwiftAX",
             targets: ["AccessibilityControl"]
-        ),
+        )
+    ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.0"),
     ],
     targets: [
         .target(
@@ -26,5 +29,24 @@ let package = Package(
             name: "AccessibilityControl",
             dependencies: ["CAccessibilityControl", "WindowControl"]
         ),
+        .executableTarget(
+            name: "AXConstantsGenerator",
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
+        .plugin(
+            name: "GenerateAXConstants",
+            capability: .command(
+                intent: .custom(
+                    verb: "generate-ax-constants",
+                    description: "Regenerate AX constant Swift files from HIServices headers"
+                ),
+                permissions: [
+                    .writeToPackageDirectory(reason: "Writes generated Swift source files into Sources/AccessibilityControl")
+                ]
+            ),
+            dependencies: ["AXConstantsGenerator"]
+        )
     ]
 )

@@ -13,3 +13,5 @@ DerivedData/
 
 # SwiftLint Remote Config Cache
 .swiftlint/RemoteConfigCache
+.claude
+MEGAREADME.md
