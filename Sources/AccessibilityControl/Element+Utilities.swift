@@ -102,8 +102,7 @@ public extension Accessibility.Element {
             try self.size(assign: frame.size)
         } catch {
             logAccessibilityError("Failed to set frame for \(self): \(String(describing: error))")
-            
-            return error
+            throw error
         }
     }
 
