@@ -140,6 +140,7 @@ extension Accessibility.Element {
     }
 
     // the token must be retained
+    @_disfavoredOverload
     public func observe(
         _ notification: NSAccessibility.Notification,
         on runLoop: RunLoop = .current,
