@@ -39,6 +39,17 @@ extension Accessibility {
             return try Element(raw: res.orThrow(AccessibilityError(.noValue)))
         }
 
+        public func hitTest(at point: CGPoint) throws -> Element {
+            try hitTest(x: Float(point.x), y: Float(point.y))
+        }
+
+        public func elementAtScreenPoint(_ point: CGPoint) -> Element? {
+            if let element = try? hitTest(at: point) {
+                return element
+            }
+            return try? Self.systemWide.hitTest(at: point)
+        }
+
         public func supportedActions() throws -> [Action] {
             var actions: CFArray?
             try check(AXUIElementCopyActionNames(raw, &actions))
