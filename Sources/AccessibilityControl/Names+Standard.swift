@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 
 // refer to AXAttributeConstants.h
@@ -7,6 +8,9 @@ import ApplicationServices
 public extension Accessibility.Names {
     var rows: AttributeName<[Accessibility.Element]> { .init(kAXRowsAttribute) }
     var children: AttributeName<[Accessibility.Element]> { .init(kAXChildrenAttribute) }
+    var childrenInNavigationOrder: AttributeName<[Accessibility.Element]> {
+        .init(NSAccessibility.Attribute.childrenInNavigationOrderAttribute.rawValue)
+    }
     var selectedChildren: AttributeName<[Accessibility.Element]> { .init(kAXSelectedChildrenAttribute) }
     var linkedElements: AttributeName<[Accessibility.Element]> { .init(kAXLinkedUIElementsAttribute) }
     // ["SectionObject": <AXUIElement 0x60000387e160> {pid=16768}, "SectionUniqueID": 11266711619528580561, "SectionDescription": Messages]
