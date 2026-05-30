@@ -233,6 +233,13 @@ public struct Window: Hashable {
         guard let arr = CGWindowListCopyWindowInfo(rawOptions, windowID) as? [[String: Any]] else {
             throw Error.listingFailed
         }
-        return try arr.map(Window.Description.init(rawDescriptor:))
+        return arr.compactMap { rawDescriptor in
+            do {
+                return try Window.Description(rawDescriptor: rawDescriptor)
+            } catch {
+                debugLog("WindowControl: skipping unparseable window descriptor: \(error)")
+                return nil
+            }
+        }
     }
 }
