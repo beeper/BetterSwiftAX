@@ -32,13 +32,10 @@ public struct Display: Hashable {
         var count: CGDisplayCount = 0
         try GraphicsConnection.check(fetch(0, nil, &count))
         guard count != 0 else { return [] }
-        return try [CGDirectDisplayID](unsafeUninitializedCapacity: Int(count)) { buf, count in
-            var outCount: CGDisplayCount {
-                get { .init(count) }
-                set { count = .init(newValue) }
-            }
-            try GraphicsConnection.check(fetch(outCount, buf.baseAddress!, &outCount))
-        }.map(Display.init(raw:))
+        var ids = [CGDirectDisplayID](repeating: kCGNullDirectDisplay, count: Int(count))
+        var fetched: CGDisplayCount = 0
+        try GraphicsConnection.check(fetch(count, &ids, &fetched))
+        return ids.prefix(Int(min(fetched, count))).map(Display.init(raw:))
     }
 
     public static func allActive() throws -> [Display] {
