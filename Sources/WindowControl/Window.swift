@@ -158,13 +158,17 @@ public struct Window: Hashable {
         return try rawSpaces.map { try Space(raw: $0).orThrow(Space.Error.invalid) }
     }
 
+    /// Adds the window to `second` and removes it from `spaces` with `CGSAddWindowsToSpaces` /
+    /// `CGSRemoveWindowsFromSpaces`. On macOS 27.2.1 (and reportedly since 12.2) this only moves the
+    /// calling process's own windows; for another process's window both calls are silent no-ops.
+    /// Use ``SpaceBridge`` for those.
     public func move(from spaces: [Space], to second: Space, for connection: GraphicsConnection = .main) throws {
-        // debugLog("CGSAddWindowsToSpaces/CGSRemoveWindowsFromSpaces")
-        CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)              // no op on macOS 12.2
-        CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)    // no op on macOS 12.2
-        // SLSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)           // no op on 12.2 [alias]
-        // SLSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray) // no op on 12.2 [alias]
+        // The SLS* spellings (SLSAddWindowsToSpaces, ...) are the same functions; CoreGraphics
+        // re-exports them, so they behave identically.
+        CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
+        CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)
 
+        // Untested alternative from SkyLight's transaction API:
         // let tx = SLSTransactionCreate(connection.raw)
         // debugLog("created SLS transaction \(tx)")
         // SLSTransactionAddWindowToSpace(tx, raw, second.raw)
@@ -175,6 +179,9 @@ public struct Window: Hashable {
         // SLSTransactionCommit(tx, tx!)
     }
 
+    /// Moves the window to `space` with the CGS membership calls. Same limitation as
+    /// ``move(from:to:for:)``: on macOS 27.2.1 it only works for the calling process's own windows.
+    /// Use ``SpaceBridge`` to move another process's window.
     public func moveToSpace(_ space: Space, for connection: GraphicsConnection = .main) throws {
         let curr = try currentSpaces(.allSpaces, for: connection)
         debugLog("Move window \(raw) from \(curr.map(\.raw)) to \(space.raw)")
@@ -185,11 +192,9 @@ public struct Window: Hashable {
         if space.isUnknownKind == true {
             try move(from: curr, to: space)
         } else {
-            // CGSMoveWindowsToManagedSpace doesn't work with kind=unknown spaces, regardless of macOS 12.2
-            // likely because unknown spaces aren't "managed"
-            // debugLog("CGSMoveWindowsToManagedSpace")
+            // CGSMoveWindowsToManagedSpace can't target kind=unknown Spaces, likely because they
+            // aren't "managed". It is the same function as SLSMoveWindowsToManagedSpace.
             CGSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw)
-            // SLSMoveWindowsToManagedSpace(connection.raw, [raw] as CFArray, space.raw) // alias
         }
         #if DEBUG
         let newCurr = try currentSpaces(.allSpaces, for: connection)

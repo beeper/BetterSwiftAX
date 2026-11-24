@@ -51,9 +51,39 @@ public struct Display: Hashable {
         return try Space(raw: space).orThrow(Space.Error.invalid)
     }
 
-    public func spaces(for connection: GraphicsConnection = .main) throws {
-        let disps = CGSCopyManagedDisplaySpaces(connection.raw).takeRetainedValue() as? [Any]
-        print(disps ?? [])
+    /// One record of `CGSCopyManagedDisplaySpaces`: the Mission Control Spaces of one display.
+    public struct ManagedSpaces: Equatable {
+        /// The display's UUID string, or `"Main"` for the single shared record when
+        /// "Displays have separate Spaces" is off.
+        public let displayIdentifier: String
+        public let currentSpace: CGSSpaceID?
+        public let spaces: [CGSSpaceID]
+
+        public init(displayIdentifier: String, currentSpace: CGSSpaceID?, spaces: [CGSSpaceID]) {
+            self.displayIdentifier = displayIdentifier
+            self.currentSpace = currentSpace
+            self.spaces = spaces
+        }
+
+        init?(record: [String: Any]) {
+            guard let identifier = record["Display Identifier"] as? String else { return nil }
+            displayIdentifier = identifier
+            currentSpace = (record["Current Space"] as? [String: Any]).flatMap(Self.spaceID)
+            spaces = (record["Spaces"] as? [[String: Any]] ?? []).compactMap(Self.spaceID)
+        }
+
+        private static func spaceID(_ values: [String: Any]) -> CGSSpaceID? {
+            let id = (values["ManagedSpaceID"] as? NSNumber)?.uint64Value ?? (values["id64"] as? NSNumber)?.uint64Value
+            return id == 0 ? nil : id
+        }
+    }
+
+    /// The managed (Mission Control) Space topology of every display.
+    public static func managedSpaces(for connection: GraphicsConnection = .main) throws -> [ManagedSpaces] {
+        guard let records = CGSCopyManagedDisplaySpaces(connection.raw)?.takeRetainedValue() as? [[String: Any]] else {
+            throw Space.Error.listFailed
+        }
+        return records.compactMap(ManagedSpaces.init(record:))
     }
 
     public func uuid() throws -> String {

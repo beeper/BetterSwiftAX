@@ -3,12 +3,24 @@ import CoreGraphics
 import CWindowControl
 
 /// SkyLight's bridged window-management operations (`SLSWindowManagementFallbackBridge`),
-/// resolved at runtime rather than linked.
+/// resolved at runtime with `NSClassFromString`.
 ///
-/// Apart from Space creation, operations are enqueued asynchronously: `true` means
-/// SkyLight accepted the operation, not that it has been applied. Read the result
-/// back with ``Space/ids(forWindow:)`` or ``Space/list(_:for:)``.
+/// Use this instead of ``Window/moveToSpace(_:for:)`` to move another process's window: the CGS
+/// membership calls behind it are no-ops for other processes' windows on macOS 27.2.1. It also
+/// creates Spaces where `CGSSpaceCreate` fails, including an intrinsically unknown Space with no
+/// Dock owner.
+///
+/// Apart from creation, operations are enqueued asynchronously: returning without throwing
+/// means SkyLight accepted the operation, not that it has been applied. Read the result back
+/// with ``Window/currentSpaces(_:for:)`` (pass `.allOSSpaces` to see unknown Spaces).
+///
+/// Spaces created here are not destroyed automatically; call ``destroy(_:)``.
 public final class SpaceBridge {
+    public struct Error: Swift.Error, CustomStringConvertible {
+        public let operation: String
+        public var description: String { "SkyLight bridge rejected \(operation)" }
+    }
+
     private let raw: NSObject
 
     /// Returns `nil` if SkyLight or the bridge class is unavailable on this system.
@@ -18,66 +30,38 @@ public final class SpaceBridge {
     }
 
     /// Creates a Space from a raw values dictionary (e.g. `["type": 0, "uuid": ...]`).
-    public func createSpace(values: [String: Any]) -> UInt64? {
-        let id = TXTSpaceBridgeCreateSpace(raw, values)
-        return id == 0 ? nil : id
+    public func createSpace(values: [String: Any]) throws -> Space {
+        try Space(raw: TXTSpaceBridgeCreateSpace(raw, values)).orThrow(Error(operation: "Space creation"))
     }
 
-    /// Creates an intrinsically unknown, unmanaged Space (creation option 1) with no Dock owner metadata.
-    /// A `type: 3` dictionary passed to ``createSpace(values:)`` still creates a managed user Space.
-    public func createUnknownSpace(uuid: String) -> UInt64? {
-        let id = TXTSpaceBridgeCreateUnknownSpace(raw, uuid)
-        return id == 0 ? nil : id
+    /// Creates an intrinsically unknown, unmanaged Space (creation option 1) with no Dock owner
+    /// metadata. A `type: 3` dictionary passed to ``createSpace(values:)`` still creates a
+    /// managed user Space.
+    public func createUnknownSpace(uuid: String) throws -> Space {
+        try Space(raw: TXTSpaceBridgeCreateUnknownSpace(raw, uuid)).orThrow(Error(operation: "unknown Space creation"))
     }
 
-    /// Adds membership in an unknown Space. Existing memberships are kept; remove them separately.
-    public func addWindow(_ window: CGWindowID, toUnknownSpace space: UInt64) -> Bool {
-        TXTSpaceBridgeAddWindowToUnknownSpace(raw, window, space)
+    /// Adds membership in an unknown Space. Existing memberships are kept; ``remove(_:from:)`` them
+    /// once the new one is visible.
+    public func add(_ window: Window, toUnknownSpace space: Space) throws {
+        try check(TXTSpaceBridgeAddWindowToUnknownSpace(raw, window.raw, space.raw), "unknown Space membership")
     }
 
-    public func removeWindow(_ window: CGWindowID, fromSpaces spaces: [UInt64]) -> Bool {
-        TXTSpaceBridgeRemoveWindowFromSpaces(raw, window, spaces.map { NSNumber(value: $0) })
+    public func remove(_ window: Window, from spaces: [Space]) throws {
+        let ids = spaces.map { NSNumber(value: $0.raw) }
+        try check(TXTSpaceBridgeRemoveWindowFromSpaces(raw, window.raw, ids), "Space membership removal")
     }
 
     /// Moves a window to a managed Space.
-    public func moveWindow(_ window: CGWindowID, toSpace space: UInt64) -> Bool {
-        TXTSpaceBridgeMoveWindow(raw, window, space)
+    public func move(_ window: Window, toManagedSpace space: Space) throws {
+        try check(TXTSpaceBridgeMoveWindow(raw, window.raw, space.raw), "managed Space move")
     }
 
-    public func destroySpace(_ space: UInt64) -> Bool {
-        TXTSpaceBridgeDestroySpace(raw, space)
-    }
-}
-
-// MARK: - Runtime-resolved Space reads
-
-extension Space {
-    /// IDs of every Space containing `window`, including unknown/OS Spaces (mask 15).
-    /// `nil` if the SkyLight symbols are unavailable.
-    public static func ids(forWindow window: CGWindowID) -> [UInt64]? {
-        TXTSpacesForWindow(window)?.map(\.uint64Value)
+    public func destroy(_ space: Space) throws {
+        try check(TXTSpaceBridgeDestroySpace(raw, space.raw), "Space destruction")
     }
 
-    /// The active Space's ID, or `nil` if it could not be read.
-    public static func activeID() -> UInt64? {
-        let id = TXTActiveSpace()
-        return id == 0 ? nil : id
-    }
-
-    /// Raw `SLSCopyManagedDisplaySpaces` records (`"Display Identifier"`, `"Current Space"`, `"Spaces"`, ...).
-    public static func managedDisplaySpaces() -> [[String: Any]]? {
-        TXTCopyManagedDisplaySpaces() as? [[String: Any]]
-    }
-
-    /// The intrinsic `CGSSpaceType` raw value of a Space (0 user, 3 unknown, ...), or `nil`
-    /// if the binding or WindowServer connection is unavailable.
-    public static func rawType(of space: UInt64) -> Int32? {
-        let type = TXTSpaceType(space)
-        return type < 0 ? nil : type
-    }
-
-    /// A Space's metadata, read independently of its type. `nil` means the read failed.
-    public static func values(of space: UInt64) -> [String: Any]? {
-        TXTCopySpaceValues(space) as? [String: Any]
+    private func check(_ accepted: Bool, _ operation: String) throws {
+        guard accepted else { throw Error(operation: operation) }
     }
 }

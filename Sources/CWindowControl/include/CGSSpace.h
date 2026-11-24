@@ -14,7 +14,7 @@
 #include "CGSConnection.h"
 #include "CGSRegion.h"
 
-typedef size_t CGSSpaceID;
+typedef uint64_t CGSSpaceID;
 
 /// Representations of the possible types of spaces the system can create.
 typedef enum {

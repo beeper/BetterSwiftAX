@@ -6,7 +6,7 @@
 #define SKYLIGHT_H
 
 typedef int SLSConnectionID;
-typedef size_t SLSSpaceID;
+typedef uint64_t SLSSpaceID;
 typedef NSObject SLSTransaction;
 
 // Get the window ID for the given AXUIElementRef.

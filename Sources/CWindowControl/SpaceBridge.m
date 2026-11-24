@@ -2,43 +2,6 @@
 #import <dlfcn.h>
 #import <objc/message.h>
 
-NSArray<NSNumber *> *TXTSpacesForWindow(uint32_t windowID) {
-    int (*connection)(void) = dlsym(RTLD_DEFAULT, "SLSMainConnectionID");
-    CFArrayRef (*copy)(int, int, CFArrayRef) = dlsym(RTLD_DEFAULT, "SLSCopySpacesForWindows");
-    if (!connection || !copy) return nil;
-    // Mask 7 omits unknown Spaces; include OS Spaces for independent readback.
-    return CFBridgingRelease(copy(connection(), 15, (__bridge CFArrayRef)@[@(windowID)]));
-}
-
-uint64_t TXTActiveSpace(void) {
-    int (*connection)(void) = dlsym(RTLD_DEFAULT, "SLSMainConnectionID");
-    uint64_t (*active)(int) = dlsym(RTLD_DEFAULT, "SLSGetActiveSpace");
-    return connection && active ? active(connection()) : 0;
-}
-
-NSArray<NSDictionary *> *TXTCopyManagedDisplaySpaces(void) {
-    int (*connection)(void) = dlsym(RTLD_DEFAULT, "SLSMainConnectionID");
-    CFArrayRef (*copy)(int) = dlsym(RTLD_DEFAULT, "SLSCopyManagedDisplaySpaces");
-    if (!connection || !copy) return nil;
-    return CFBridgingRelease(copy(connection()));
-}
-
-int32_t TXTSpaceType(uint64_t spaceID) {
-    int (*connection)(void) = dlsym(RTLD_DEFAULT, "SLSMainConnectionID");
-    int32_t (*type)(int, uint64_t) = dlsym(RTLD_DEFAULT, "SLSSpaceGetType");
-    if (!connection || !type) return -1;
-    int client = connection();
-    return client ? type(client, spaceID) : -1;
-}
-
-NSDictionary *_Nullable TXTCopySpaceValues(uint64_t spaceID) {
-    int (*connection)(void) = dlsym(RTLD_DEFAULT, "SLSMainConnectionID");
-    CFDictionaryRef (*copy)(int, uint64_t) = dlsym(RTLD_DEFAULT, "SLSSpaceCopyValues");
-    if (!connection || !copy) return nil;
-    int client = connection();
-    return client ? CFBridgingRelease(copy(client, spaceID)) : nil;
-}
-
 static id SpaceBridgeOperation(NSString *name, SEL initializer) {
     Class cls = NSClassFromString(name);
     if (!cls || ![cls instancesRespondToSelector:initializer]) return nil;

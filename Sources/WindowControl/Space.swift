@@ -7,12 +7,16 @@ public class Space: Hashable {
         case listFailed
     }
 
-    public enum Kind {
+    /// The value of `CGSSpaceGetType`. WindowServer also reports `.unknown` for IDs that no
+    /// longer exist, so confirm with ``Space/list(_:for:)`` before trusting an `.unknown` result.
+    public enum Kind: Hashable {
         case user
         case fullscreen
         case system
         case unknown
         case tiled
+        /// A type this package has no name for, e.g. one added in a newer macOS.
+        case other(UInt32)
 
         public var raw: CGSSpaceType {
             switch self {
@@ -21,17 +25,18 @@ public class Space: Hashable {
             case .system: return CGSSpaceTypeSystem
             case .unknown: return CGSSpaceTypeUnknown
             case .tiled: return CGSSpaceTypeTiled
+            case .other(let value): return CGSSpaceType(rawValue: value)
             }
         }
 
-        public init?(raw: CGSSpaceType) {
+        public init(raw: CGSSpaceType) {
             switch raw {
             case CGSSpaceTypeUser: self = .user
             case CGSSpaceTypeFullscreen: self = .fullscreen
             case CGSSpaceTypeSystem: self = .system
             case CGSSpaceTypeUnknown: self = .unknown
             case CGSSpaceTypeTiled: self = .tiled
-            default: return nil
+            default: self = .other(raw.rawValue)
             }
         }
     }
@@ -88,12 +93,14 @@ public class Space: Hashable {
 
     public static let prefix = "Texts-"
 
+    /// Creates a Space with `CGSSpaceCreate`. Throws ``Error/invalid`` when WindowServer refuses,
+    /// which it does for `.user` Spaces on macOS 27.2.1; ``SpaceBridge/createSpace(values:)`` works there.
     public init(
         newSpaceOfKind kind: Kind,
         destroyWhenDone: Bool = true,
         display: Display = .main,
         connection: GraphicsConnection = .main
-    ) {
+    ) throws {
         isUnknownKind = kind == .unknown
         var values: [String: Any] = [
             // "wsid": 1234 as CFNumber, // Compat ID, can be used with SLSMoveWorkspaceWindowList(conn, {windowID}, 1, wsid)
@@ -107,12 +114,14 @@ public class Space: Hashable {
             dockPID = Dock.pid
             values["dockPID"] = dockPID ?? 0 as CFNumber
         }
-        raw = CGSSpaceCreate(
+        let raw = CGSSpaceCreate(
             connection.raw,
             // kind will be set to .unknown only when second arg is 1
             UnsafeMutableRawPointer(bitPattern: kind == .unknown ? 1 : 0),
             values as CFDictionary
         )
+        guard raw != 0 else { throw Error.invalid }
+        self.raw = raw
         self.destroyWhenDone = destroyWhenDone
         #if DEBUG
         debugLog("[spaces] created space id=\(raw) destroyWhenDone=\(destroyWhenDone) kind=\(kind) (\(kind.raw.rawValue))")
@@ -120,8 +129,8 @@ public class Space: Hashable {
         #endif
     }
 
-    public func values(for connection: GraphicsConnection = .main) throws -> CFDictionary {
-        try CGSSpaceCopyValues(connection.raw, raw).orThrow(Error.invalid).takeRetainedValue()
+    public func values(for connection: GraphicsConnection = .main) throws -> [String: Any] {
+        try (CGSSpaceCopyValues(connection.raw, raw)?.takeRetainedValue() as? [String: Any]).orThrow(Error.invalid)
     }
     public func setValues(for connection: GraphicsConnection = .main, _ values: [String: Any]) throws {
         try GraphicsConnection.check(CGSSpaceSetValues(connection.raw, raw, values as CFDictionary))
@@ -141,8 +150,8 @@ public class Space: Hashable {
         CGSSpaceDestroy(connection.raw, raw)
     }
 
-    public func kind(for connection: GraphicsConnection = .main) throws -> Kind {
-        try Space.Kind(raw: CGSSpaceGetType(connection.raw, raw)).orThrow(Error.invalid)
+    public func kind(for connection: GraphicsConnection = .main) -> Kind {
+        Kind(raw: CGSSpaceGetType(connection.raw, raw))
     }
     public func kind(for connection: GraphicsConnection = .main, assign value: Kind) {
         CGSSpaceSetType(connection.raw, raw, value.raw)
@@ -195,7 +204,7 @@ public class Space: Hashable {
 
     public func printAttributes() {
         debugLog("[space \(raw)] Name: \((try? name()) as Any)")
-        debugLog("[space \(raw)] Kind: \((try? kind()) as Any)")
+        debugLog("[space \(raw)] Kind: \(kind())")
         debugLog("[space \(raw)] Owners: \((try? owners()) ?? [])")
         debugLog("[space \(raw)] Level: \(level())")
         debugLog("[space \(raw)] Compat ID: \(compatID())")
