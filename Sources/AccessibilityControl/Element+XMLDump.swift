@@ -236,7 +236,7 @@ public extension Accessibility.Element {
 private extension String {
     var xmlEscaped: String {
         replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "\"", with: "&apos;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
     }
