@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Swift package
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build (debug)
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+      - name: Build (release)
+        run: swift build -c release
+
+  inspector:
+    name: BetterAccessibilityInspector app
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project BetterAccessibilityInspector/BetterAccessibilityInspector.xcodeproj \
+            -scheme BetterAccessibilityInspector \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath .derived \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=""
