@@ -102,7 +102,10 @@ extension Accessibility {
             let rawValue = try convertToAX(value)
                 .orThrow(AccessibilityError(.failure, file: file, line: line))
             var result: AnyObject?
-            try check(AXUIElementCopyParameterizedAttributeValue(element.raw, name.value as CFString, rawValue, &result))
+            try check(
+                AXUIElementCopyParameterizedAttributeValue(element.raw, name.value as CFString, rawValue, &result),
+                file: file, line: line
+            )
             return try result.flatMap(convertFromAX)
                 .orThrow(AccessibilityError(.failure, file: file, line: line))
         }

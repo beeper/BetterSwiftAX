@@ -25,22 +25,22 @@ extension Accessibility {
 
         public static let systemWide = Element(raw: AXUIElementCreateSystemWide())
 
-        public func pid() throws -> pid_t {
+        public func pid(file: StaticString = #fileID, line: UInt = #line) throws -> pid_t {
             var pid: pid_t = 0
-            try check(AXUIElementGetPid(raw, &pid))
+            try check(AXUIElementGetPid(raw, &pid), file: file, line: line)
             return pid
         }
 
         // point in screen coordinates
         // element must represent an app or .systemWide
-        public func hitTest(x: Float, y: Float) throws -> Element {
+        public func hitTest(x: Float, y: Float, file: StaticString = #fileID, line: UInt = #line) throws -> Element {
             var res: AXUIElement?
-            try check(AXUIElementCopyElementAtPosition(raw, x, y, &res))
-            return try Element(raw: res.orThrow(AccessibilityError(.noValue)))
+            try check(AXUIElementCopyElementAtPosition(raw, x, y, &res), file: file, line: line)
+            return try Element(raw: res.orThrow(AccessibilityError(.noValue, file: file, line: line)))
         }
 
-        public func hitTest(at point: CGPoint) throws -> Element {
-            try hitTest(x: Float(point.x), y: Float(point.y))
+        public func hitTest(at point: CGPoint, file: StaticString = #fileID, line: UInt = #line) throws -> Element {
+            try hitTest(x: Float(point.x), y: Float(point.y), file: file, line: line)
         }
 
         public func elementAtScreenPoint(_ point: CGPoint) -> Element? {
@@ -50,9 +50,9 @@ extension Accessibility {
             return try? Self.systemWide.hitTest(at: point)
         }
 
-        public func supportedActions() throws -> [Action] {
+        public func supportedActions(file: StaticString = #fileID, line: UInt = #line) throws -> [Action] {
             var actions: CFArray?
-            try check(AXUIElementCopyActionNames(raw, &actions))
+            try check(AXUIElementCopyActionNames(raw, &actions), file: file, line: line)
             guard let names = actions as? [String] else { return [] }
             return names
                 .map(Action.Name.init)
@@ -67,9 +67,9 @@ extension Accessibility {
             self.action(Names()[keyPath: actionName])
         }
 
-        public func supportedAttributes() throws -> [Attribute<Any>] {
+        public func supportedAttributes(file: StaticString = #fileID, line: UInt = #line) throws -> [Attribute<Any>] {
             var rawNames: CFArray?
-            try check(AXUIElementCopyAttributeNames(raw, &rawNames))
+            try check(AXUIElementCopyAttributeNames(raw, &rawNames), file: file, line: line)
             guard let names = rawNames as? [String] else { return [] }
             return names
                 .map(Attribute<Any>.Name.init(_:))
@@ -92,9 +92,9 @@ extension Accessibility {
             mutableAttribute(Names()[keyPath: attributeName])
         }
 
-        public func supportedParameterizedAttributes() throws -> [ParameterizedAttribute<Any, Any>] {
+        public func supportedParameterizedAttributes(file: StaticString = #fileID, line: UInt = #line) throws -> [ParameterizedAttribute<Any, Any>] {
             var rawNames: CFArray?
-            try check(AXUIElementCopyParameterizedAttributeNames(raw, &rawNames))
+            try check(AXUIElementCopyParameterizedAttributeNames(raw, &rawNames), file: file, line: line)
             guard let names = rawNames as? [String] else { return [] }
             return names
                 .map(ParameterizedAttribute<Any, Any>.Name.init)
@@ -114,8 +114,8 @@ extension Accessibility {
         }
 
         // nil: reset
-        public func setMessagingTimeout(_ timeout: Float?) throws {
-            try check(AXUIElementSetMessagingTimeout(raw, timeout ?? 0))
+        public func setMessagingTimeout(_ timeout: Float?, file: StaticString = #fileID, line: UInt = #line) throws {
+            try check(AXUIElementSetMessagingTimeout(raw, timeout ?? 0), file: file, line: line)
         }
     }
 }
@@ -130,7 +130,7 @@ extension Accessibility.Element: AccessibilityConvertible {
 }
 
 extension Accessibility.Element {
-    public func window(file: StaticString = #file, line: UInt = #line) throws -> Window {
+    public func window(file: StaticString = #fileID, line: UInt = #line) throws -> Window {
         var id: CGWindowID = 0
         try Accessibility.check(_AXUIElementGetWindow(raw, &id), file: file, line: line)
         return .init(raw: id)
