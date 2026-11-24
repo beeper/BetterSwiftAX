@@ -44,3 +44,19 @@ struct RectFlipTests {
         #expect(rect.flippedBetweenCocoaAndScreenSpace().minY == primaryHeight - 10)
     }
 }
+
+@Suite("Window.describe")
+struct WindowDescribeTests {
+    @Test func unknownWindowIDThrowsWindowNotFound() {
+        #expect(throws: Window.Error.self) {
+            _ = try Window(raw: 0).describe()
+        }
+    }
+
+    @Test func describesExistingWindowDirectly() throws {
+        let windows = try Window.list(.onScreen)
+        guard let first = windows.first else { return }
+        let desc = try first.describe()
+        #expect(desc.window == first)
+    }
+}

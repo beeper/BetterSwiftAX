@@ -5,8 +5,10 @@
 #include <CoreGraphics/CoreGraphics.h>
 #include "SpaceBridge.h"
 
-// CGWindowListCreate is unavailable in Swift for some reason
-CFArrayRef TXTWindowListCreate(CGWindowListOption option, CGWindowID relativeToWindow);
-OSStatus TXTGetProcessForPID(pid_t pid, ProcessSerialNumber *psn);
+// CGWindowListCreate is unavailable in Swift because its CFArray holds raw CGWindowID
+// integers cast to void* rather than CFNumber objects; box them into NSNumber here.
+NSArray<NSNumber *> * _Nullable TXTWindowListCreate(CGWindowListOption option, CGWindowID relativeToWindow);
+CFArrayRef _Nullable TXTWindowListCreateDescription(CGWindowID windowID);
+OSStatus TXTGetProcessForPID(pid_t pid, ProcessSerialNumber * _Nonnull psn);
 
 #endif /* WindowList_h */

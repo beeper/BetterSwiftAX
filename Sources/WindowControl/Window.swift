@@ -194,14 +194,16 @@ public struct Window: Hashable {
     }
 
     public func describe() throws -> Description {
-        try Self.listDescriptions().first { $0.window == self }.orThrow(Error.windowNotFound)
-        //        guard let array = CGWindowListCreateDescriptionFromArray([raw] as CFArray) as? [[String: Any]],
-        //              array.count == 1 else { throw Error.windowNotFound }
-        //        let desc = try Description(rawDescriptor: array[0])
-        //        // this should always be true since we asked for exactly one window and got
-        //        // one back, but it's an extra sanity check
-        //        guard desc.window.raw == raw else { throw Error.windowNotFound }
-        //        return desc
+        guard let array = TXTWindowListCreateDescription(raw)?.takeRetainedValue() as? [[String: Any]],
+              array.count == 1
+        else {
+            throw Error.windowNotFound
+        }
+        let desc = try Description(rawDescriptor: array[0])
+        guard desc.window == self else {
+            throw Error.windowNotFound
+        }
+        return desc
     }
 
     public static func list(_ options: ListOptions = .all, excludeDesktopElements: Bool = false) throws -> [Window] {
@@ -209,10 +211,10 @@ public struct Window: Hashable {
         if excludeDesktopElements {
             rawOptions.formUnion(.excludeDesktopElements)
         }
-        guard let arr = TXTWindowListCreate(rawOptions, windowID).takeRetainedValue() as? [CGWindowID] else {
+        guard let arr = TXTWindowListCreate(rawOptions, windowID) else {
             throw Error.listingFailed
         }
-        return arr.map(Self.init(raw:))
+        return arr.map { Self(raw: $0.uint32Value) }
     }
 
     public static func listDescriptions(
