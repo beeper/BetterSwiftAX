@@ -2,9 +2,19 @@ import Foundation
 import CWindowControl
 
 public class Space: Hashable {
-    public enum Error: Swift.Error {
+    public enum Error: Swift.Error, CustomStringConvertible {
         case invalid
         case listFailed
+        /// SkyLight refused a write operation.
+        case rejected(operation: String)
+
+        public var description: String {
+            switch self {
+            case .invalid: return "Invalid Space"
+            case .listFailed: return "Could not list Spaces"
+            case .rejected(let operation): return "SkyLight rejected \(operation)"
+            }
+        }
     }
 
     /// The value of `CGSSpaceGetType`. WindowServer also reports `.unknown` for IDs that no
@@ -94,7 +104,7 @@ public class Space: Hashable {
     public static let prefix = "Texts-"
 
     /// Creates a Space with `CGSSpaceCreate`. Throws ``Error/invalid`` when WindowServer refuses,
-    /// which it does for `.user` Spaces on macOS 27.2.1; ``SpaceBridge/createSpace(values:)`` works there.
+    /// which it does for `.user` Spaces on macOS 27.2.1; ``create(values:)`` works there.
     public init(
         newSpaceOfKind kind: Kind,
         destroyWhenDone: Bool = true,
@@ -146,8 +156,13 @@ public class Space: Hashable {
         CGSSpaceSetAbsoluteLevel(connection.raw, raw, level)
     }
 
-    public func destroy(for connection: GraphicsConnection = .main) {
+    /// Destroys the Space, however it was created. On macOS 27.2.1 `CGSSpaceDestroy` only destroys
+    /// Spaces created with `CGSSpaceCreate`, and the bridge only those it created, so both are asked.
+    /// Through the bridge this is asynchronous: poll ``exists(_:for:)`` to see it applied.
+    public func destroy(for connection: GraphicsConnection = .main) throws {
+        let accepted = SpaceBridge.shared.map { TXTSpaceBridgeDestroySpace($0, raw) } ?? true
         CGSSpaceDestroy(connection.raw, raw)
+        try SpaceBridge.check(accepted, "Space destruction")
     }
 
     public func kind(for connection: GraphicsConnection = .main) -> Kind {
@@ -191,7 +206,7 @@ public class Space: Hashable {
     deinit {
         if destroyWhenDone {
             debugLog("[spaces] destroying space id=\(raw)")
-            destroy()
+            try? destroy()
         }
     }
 

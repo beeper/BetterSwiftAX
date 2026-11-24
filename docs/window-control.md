@@ -17,32 +17,29 @@ dyld_info -exports /System/Library/Frameworks/CoreGraphics.framework/CoreGraphic
 #   [re-export] _CGSCopySpacesForWindows (_SLSCopySpacesForWindows from SkyLight)
 ```
 
-On macOS 27.2.1, all 31 `CGS*` functions this package calls are re-exports like this, `CGSMainConnectionID` included. That doesn't hold for every `CGS*` symbol: CoreGraphics still implements about 120 of its own. So when a `CGS*` call stops working, switching to its `SLS*` name won't help. What helps is a different API, such as the `SpaceBridge` operations below.
+On macOS 27.2.1 every `CGS*` function this package calls is such a re-export, so when one stops working, switching to its `SLS*` name won't help. Use the [bridge-backed operations](#writing-space-state) instead.
 
 ## Status on macOS 27.2.1
 
-Checked against live WindowServer state on macOS 27.2.1. "Own window" is a window of the calling process; "other window" is one owned by another process (for example Messages).
+"Own window" belongs to the calling process; "other window" to another process (for example Messages).
 
 | API | Own window | Other window | Use instead |
 |---|---|---|---|
 | `Space.list`, `Space.active()`, `kind()`, `values()`, `Window.currentSpaces`, `Display.managedSpaces()` | Works | Works | |
-| `Window.move(from:to:)`: `CGSAddWindowsToSpaces` / `CGSRemoveWindowsFromSpaces` | Works | **No-op** | `SpaceBridge.add(_:toUnknownSpace:)`, `remove(_:from:)` |
-| `Window.moveToSpace` to a managed Space: `CGSMoveWindowsToManagedSpace` | Works | **No-op** | `SpaceBridge.move(_:toManagedSpace:)` |
-| `Space(newSpaceOfKind: .user)`: `CGSSpaceCreate` | **Fails** (returns 0; the initializer throws) | n/a | `SpaceBridge.createSpace(values:)` |
-| `Space(newSpaceOfKind: .unknown)`: `CGSSpaceCreate` option 1 | Works | n/a | `SpaceBridge.createUnknownSpace(uuid:)` for one with no Dock owner |
-| `SpaceBridge` create / add / remove / move / destroy | Works | Works | |
+| `Window.move(from:to:)`: `CGSAddWindowsToSpaces` / `CGSRemoveWindowsFromSpaces` | Works | **No-op** | `Window.add(toUnknownSpace:)`, `remove(from:)` |
+| `Window.moveToSpace` to a managed Space: `CGSMoveWindowsToManagedSpace` | Works | **No-op** | `Window.move(toManagedSpace:)` |
+| `Space(newSpaceOfKind: .user)`: `CGSSpaceCreate` | **Fails** (returns 0; the initializer throws) | n/a | `Space.create(values:)` |
+| `Space(newSpaceOfKind: .unknown)`: `CGSSpaceCreate` option 1 | Works | n/a | `Space.createUnknown(uuid:)` for one with no Dock owner |
 
-The no-ops fail silently: the call returns and Space membership doesn't change. Older notes in the source date the membership no-ops to macOS 12.2.
+The no-ops fail silently. The replacements work on both kinds of window.
 
-## The bridge from AccessibilityControl
-
-AX elements and CG windows are different worlds with different identifiers. The bridge is:
+## From AccessibilityControl
 
 ```swift
 let window: Window = try axWindowElement.window()   // private _AXUIElementGetWindow
 ```
 
-which takes an `Accessibility.Element` of role `AXWindow` to a `Window` (a `CGWindowID`). There is no general reverse mapping.
+This takes an `AXWindow` element to its `Window`. There is no reverse mapping.
 
 ## `GraphicsConnection`
 
@@ -71,13 +68,13 @@ Space-related operations (all private API):
 
 ```swift
 let spaces = try window.currentSpaces()          // Spaces this window is on; pass .allOSSpaces to include unknown Spaces
-try window.moveToSpace(targetSpace)             // own windows only on macOS 27.2.1; see SpaceBridge for others
+try window.moveToSpace(targetSpace)             // CGS: own windows only on macOS 27.2.1
 try window.setAlpha(0.5)                        // may only work for your own windows
 ```
 
 ## `Space`
 
-Wraps a `CGSSpaceID` (Mission Control desktops, fullscreen spaces, etc. — entirely private API).
+Wraps a `CGSSpaceID` (Mission Control desktops, fullscreen Spaces, etc.).
 
 ```swift
 let current = try Space.active()
@@ -90,35 +87,30 @@ print(try current.owners())    // pids
 
 `ListOptions` presets: `.currentSpaces`, `.otherSpaces`, `.allSpaces`, `.allOSSpaces`, `.allVisibleSpaces`.
 
-You can also *create* spaces:
-
-```swift
-let space = try Space(newSpaceOfKind: .user)   // destroyWhenDone: true by default; throws on macOS 27.2.1, use SpaceBridge
-```
-
 Notes:
 
-- A `Space` created with `newSpaceOfKind:` is destroyed in `deinit` unless `destroyWhenDone: false` — keep it alive as long as you need it.
+- `Space(newSpaceOfKind:)` creates through CGS and destroys the Space in `deinit` unless `destroyWhenDone: false`. Prefer `Space.create`/`createUnknown` below.
 - `show()` / `hide()` toggle space visibility and are easy to misuse; prefer moving the window instead.
-- Moving windows to spaces of kind `.unknown` uses a different code path than managed spaces; `moveToSpace` picks the right one automatically, but both paths only move the caller's own windows on macOS 27.2.1.
-- `level`, `values`/`setValues`, and `compatID` expose lower-level CGS state for advanced use.
 - `kind()` reports `.unknown` for an ID that no longer exists. Check `Space.exists(_:)` before trusting it.
-- `Space.raw` is the 64-bit SkyLight ID (`CGSSpaceID` is `uint64_t`), so it can be stored and compared directly.
 
-### `SpaceBridge`
+### Writing Space state
 
-`SpaceBridge` drives SkyLight's `SLSWindowManagementFallbackBridge` (resolved with `NSClassFromString`; the classes are Objective-C only, so they cannot be linked). It is the only way here to move another process's window between Spaces on macOS 27.2.1 (the CGS membership calls behind `Window.moveToSpace` are no-ops there), and to create an intrinsically unknown, unmanaged Space with no Dock owner, which `Space(newSpaceOfKind: .unknown)` cannot:
+These go through SkyLight's `SLSWindowManagementFallbackBridge` when `Space.isBridgeAvailable`, and fall back to CGS otherwise:
 
 ```swift
-guard let bridge = SpaceBridge() else { return }
-let parking = try bridge.createUnknownSpace(uuid: "MyApp-Parking")  // not destroyed automatically
-try bridge.add(window, toUnknownSpace: parking)
+let parking = try Space.createUnknown(uuid: "MyApp-Parking") // unmanaged, no Dock owner; not destroyed automatically
+try window.add(toUnknownSpace: parking)
 // Adding keeps old memberships: wait until it shows up, then remove the rest.
 let others = try window.currentSpaces(.allOSSpaces).filter { $0 != parking }
-try bridge.remove(window, from: others)
+try window.remove(from: others)
+// later
+try window.move(toManagedSpace: desktop)
+try parking.destroy()
 ```
 
-Everything except creation is enqueued asynchronously: returning means accepted, not applied, so poll `window.currentSpaces(.allOSSpaces)` (`.allSpaces` omits unknown Spaces) until it matches. When finished, `try bridge.destroy(parking)`.
+Everything except creation is asynchronous through the bridge: returning means accepted, not applied. Poll `window.currentSpaces(.allOSSpaces)` (`.allSpaces` omits unknown Spaces) or `Space.exists(_:)`.
+
+`destroy()` asks both the bridge and CGS, since each only destroys Spaces it created.
 
 ## `Display`
 
@@ -136,7 +128,7 @@ for record in try Display.managedSpaces() {     // Mission Control topology, one
 
 ## `Process` and `Dock`
 
-Small utilities used by the Space machinery, useful on their own:
+Small utilities used by the Space machinery:
 
 ```swift
 try Process.monitorExit(pid: somePid) { print("exited") }   // dispatch-source based
@@ -146,4 +138,4 @@ Dock.pid                                    // pid of com.apple.dock, if running
 let observer = Dock.Observer(onExit: { … }) // fires when the Dock restarts (retain it)
 ```
 
-The Dock matters here because user-space visibility and managed-space moves involve the Dock process; `Dock.Observer` lets you re-apply Space state after the Dock restarts (which destroys/recreates Space state).
+A Dock restart recreates Space state, so use `Dock.Observer` to re-apply yours.

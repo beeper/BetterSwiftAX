@@ -161,7 +161,7 @@ public struct Window: Hashable {
     /// Adds the window to `second` and removes it from `spaces` with `CGSAddWindowsToSpaces` /
     /// `CGSRemoveWindowsFromSpaces`. On macOS 27.2.1 (and reportedly since 12.2) this only moves the
     /// calling process's own windows; for another process's window both calls are silent no-ops.
-    /// Use ``SpaceBridge`` for those.
+    /// ``add(toUnknownSpace:)`` and ``remove(from:)`` use SkyLight's bridge when it is available.
     public func move(from spaces: [Space], to second: Space, for connection: GraphicsConnection = .main) throws {
         // The SLS* spellings (SLSAddWindowsToSpaces, ...) are the same functions; CoreGraphics
         // re-exports them, so they behave identically.
@@ -171,7 +171,7 @@ public struct Window: Hashable {
 
     /// Moves the window to `space` with the CGS membership calls. Same limitation as
     /// ``move(from:to:for:)``: on macOS 27.2.1 it only works for the calling process's own windows.
-    /// Use ``SpaceBridge`` to move another process's window.
+    /// ``move(toManagedSpace:)`` and ``add(toUnknownSpace:)`` move another process's window.
     public func moveToSpace(_ space: Space, for connection: GraphicsConnection = .main) throws {
         let curr = try currentSpaces(.allSpaces, for: connection)
         debugLog("Move window \(raw) from \(curr.map(\.raw)) to \(space.raw)")
