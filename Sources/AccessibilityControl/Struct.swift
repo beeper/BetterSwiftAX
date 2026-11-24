@@ -46,23 +46,25 @@ extension Accessibility {
                 return nil
             case .cgPoint:
                 var point = CGPoint()
-                AXValueGetValue(value, kind, &point)
+                guard AXValueGetValue(value, kind, &point) else { return nil }
                 self = .point(point)
             case .cgSize:
                 var size = CGSize()
-                AXValueGetValue(value, kind, &size)
+                guard AXValueGetValue(value, kind, &size) else { return nil }
                 self = .size(size)
             case .cgRect:
                 var rect = CGRect()
-                AXValueGetValue(value, kind, &rect)
+                guard AXValueGetValue(value, kind, &rect) else { return nil }
                 self = .rect(rect)
             case .cfRange:
                 var range = CFRange()
-                AXValueGetValue(value, kind, &range)
-                self = .range(range.location..<(range.location + range.length))
+                guard AXValueGetValue(value, kind, &range), range.length >= 0 else { return nil }
+                let (upperBound, overflow) = range.location.addingReportingOverflow(range.length)
+                guard !overflow else { return nil }
+                self = .range(range.location..<upperBound)
             case .axError:
                 var err: AXError = .success
-                AXValueGetValue(value, kind, &err)
+                guard AXValueGetValue(value, kind, &err) else { return nil }
                 self = .error(.init(err))
             @unknown default:
                 return nil

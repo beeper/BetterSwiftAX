@@ -53,6 +53,24 @@ struct StructTests {
         #expect(Accessibility.Struct(erased: "not a value" as CFString) == nil)
         #expect(Accessibility.Struct(erased: 42 as CFNumber) == nil)
     }
+
+    @Test func negativeLengthCFRangeReturnsNilInsteadOfCrashing() throws {
+        var negative = CFRange(location: 5, length: -1)
+        let rawNegative = try #require(AXValueCreate(.cfRange, &negative))
+        #expect(Accessibility.Struct(erased: rawNegative) == nil)
+        #expect(Range<Int>(axRaw: rawNegative) == nil)
+
+        var notFound = CFRange(location: kCFNotFound, length: -1)
+        let rawNotFound = try #require(AXValueCreate(.cfRange, &notFound))
+        #expect(Accessibility.Struct(erased: rawNotFound) == nil)
+    }
+
+    @Test func overflowingCFRangeReturnsNilInsteadOfCrashing() throws {
+        var overflowing = CFRange(location: Int.max, length: 1)
+        let raw = try #require(AXValueCreate(.cfRange, &overflowing))
+        #expect(Accessibility.Struct(erased: raw) == nil)
+        #expect(Range<Int>(axRaw: raw) == nil)
+    }
 }
 
 @Suite("Geometry conformances")
