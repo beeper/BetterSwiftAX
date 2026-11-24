@@ -29,6 +29,10 @@ let package = Package(
             name: "AccessibilityControl",
             dependencies: ["CAccessibilityControl", "WindowControl"]
         ),
+        .testTarget(
+            name: "AccessibilityControlTests",
+            dependencies: ["AccessibilityControl", "WindowControl"]
+        ),
         .executableTarget(
             name: "AXTool",
             dependencies: [
