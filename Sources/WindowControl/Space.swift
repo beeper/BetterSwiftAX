@@ -8,7 +8,7 @@ public class Space: Hashable {
     }
 
     /// The value of `CGSSpaceGetType`. WindowServer also reports `.unknown` for IDs that no
-    /// longer exist, so confirm with ``Space/list(_:for:)`` before trusting an `.unknown` result.
+    /// longer exist, so confirm with ``Space/exists(_:for:)`` before trusting an `.unknown` result.
     public enum Kind: Hashable {
         case user
         case fullscreen
@@ -180,6 +180,12 @@ public class Space: Hashable {
         guard let ids = CGSCopySpaces(connection.raw, options.raw)?.takeRetainedValue() as? [CGSSpaceID]
         else { throw Error.listFailed }
         return try ids.map { try Space(raw: $0).orThrow(Error.listFailed) }
+    }
+
+    /// Whether a Space with this ID currently exists, including unknown/OS Spaces. Use it to
+    /// confirm an `.unknown` ``kind(for:)``, which WindowServer also reports for deleted IDs.
+    public static func exists(_ id: CGSSpaceID, for connection: GraphicsConnection = .main) throws -> Bool {
+        try list(.allOSSpaces, for: connection).contains { $0.raw == id }
     }
 
     deinit {

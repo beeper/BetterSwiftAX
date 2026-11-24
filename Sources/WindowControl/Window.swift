@@ -167,16 +167,6 @@ public struct Window: Hashable {
         // re-exports them, so they behave identically.
         CGSAddWindowsToSpaces(connection.raw, [raw] as CFArray, [second.raw] as CFArray)
         CGSRemoveWindowsFromSpaces(connection.raw, [raw] as CFArray, spaces.map(\.raw) as CFArray)
-
-        // Untested alternative from SkyLight's transaction API:
-        // let tx = SLSTransactionCreate(connection.raw)
-        // debugLog("created SLS transaction \(tx)")
-        // SLSTransactionAddWindowToSpace(tx, raw, second.raw)
-        // SLSTransactionRemoveWindowFromSpaces(tx, raw, spaces.map(\.raw) as CFArray)
-        // SLSTransactionRemoveWindowFromSpace(tx, raw, spaces.first?.raw ?? 0)
-        // SLSTransactionAddWindowToSpaceAndRemoveFromSpaces(tx, raw, second.raw, spaces.map(\.raw) as CFArray)
-        // SLSTransactionMoveWindowsToManagedSpace(tx, [raw] as CFArray, second.raw)
-        // SLSTransactionCommit(tx, tx!)
     }
 
     /// Moves the window to `space` with the CGS membership calls. Same limitation as

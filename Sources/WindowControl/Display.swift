@@ -59,12 +59,6 @@ public struct Display: Hashable {
         public let currentSpace: CGSSpaceID?
         public let spaces: [CGSSpaceID]
 
-        public init(displayIdentifier: String, currentSpace: CGSSpaceID?, spaces: [CGSSpaceID]) {
-            self.displayIdentifier = displayIdentifier
-            self.currentSpace = currentSpace
-            self.spaces = spaces
-        }
-
         init?(record: [String: Any]) {
             guard let identifier = record["Display Identifier"] as? String else { return nil }
             displayIdentifier = identifier

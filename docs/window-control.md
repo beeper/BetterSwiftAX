@@ -102,7 +102,7 @@ Notes:
 - `show()` / `hide()` toggle space visibility and are easy to misuse; prefer moving the window instead.
 - Moving windows to spaces of kind `.unknown` uses a different code path than managed spaces; `moveToSpace` picks the right one automatically, but both paths only move the caller's own windows on macOS 27.2.1.
 - `level`, `values`/`setValues`, and `compatID` expose lower-level CGS state for advanced use.
-- `kind()` reports `.unknown` for an ID that no longer exists. Check `Space.list(.allOSSpaces)` before trusting it.
+- `kind()` reports `.unknown` for an ID that no longer exists. Check `Space.exists(_:)` before trusting it.
 - `Space.raw` is the 64-bit SkyLight ID (`CGSSpaceID` is `uint64_t`), so it can be stored and compared directly.
 
 ### `SpaceBridge`
