@@ -131,11 +131,11 @@ for record in try Display.managedSpaces() {     // Mission Control topology, one
 Small utilities used by the Space machinery:
 
 ```swift
-try Process.monitorExit(pid: somePid) { print("exited") }   // dispatch-source based
-let hung = try Process.isUnresponsive(somePid)              // window-server's view of "not responding"
+let monitor = try Process.monitorExit(pid: somePid) { print("exited") } // retain it; dropping cancels
+let hung = try Process.isUnresponsive(somePid)                          // window-server's view of "not responding"
 
 Dock.pid                                    // pid of com.apple.dock, if running
-let observer = Dock.Observer(onExit: { … }) // fires when the Dock restarts (retain it)
+let observer = Dock.Observer(onExit: { … }) // fires when the Dock restarts (retain it; dropping cancels)
 ```
 
 A Dock restart recreates Space state, so use `Dock.Observer` to re-apply yours.
