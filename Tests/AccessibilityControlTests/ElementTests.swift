@@ -77,3 +77,49 @@ struct ErrorLocationTests {
         }
     }
 }
+
+@Suite("Breadth-first traversal")
+struct TraversalTests {
+    @Test func visitsInBreadthFirstOrderAndSupportsMultiPassIteration() {
+        let tree: [Int: [Int]] = [
+            0: [1, 2],
+            1: [3, 4],
+            2: [5],
+            3: [],
+            4: [6],
+            5: [],
+            6: [],
+        ]
+
+        let seq = breadthFirstTraverse(root: 0, maxTraversalComplexity: 100) { tree[$0] }
+        let firstPass = Array(seq)
+        let secondPass = Array(seq)
+
+        #expect(firstPass == [0, 1, 2, 3, 4, 5, 6])
+        #expect(secondPass == [0, 1, 2, 3, 4, 5, 6])
+    }
+
+    @Test func enforcesComplexityBudgetOnCyclesAndResetsAcrossPasses() {
+        var limitHits = 0
+        let seq = breadthFirstTraverse(
+            root: 0,
+            maxTraversalComplexity: 5,
+            onLimitReached: { _, _ in limitHits += 1 }
+        ) { node in
+            [node + 1]
+        }
+
+        #expect(Array(seq) == [0, 1, 2, 3, 4])
+        #expect(Array(seq) == [0, 1, 2, 3, 4])
+        #expect(limitHits == 2)
+    }
+
+    @Test func handlesWideTreeWithQueueCompaction() {
+        let children = Array(1...250)
+        let seq = breadthFirstTraverse(root: 0, maxTraversalComplexity: 500) { node in
+            node == 0 ? children : []
+        }
+
+        #expect(Array(seq) == [0] + children)
+    }
+}

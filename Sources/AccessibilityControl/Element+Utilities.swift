@@ -13,81 +13,98 @@ private func logAccessibilityError(_ message: String) {
     }
 }
 
+private func isExpectedMissingAttribute(_ error: Error) -> Bool {
+    guard let axError = error as? AccessibilityError else { return false }
+    return axError.code == .attributeUnsupported || axError.code == .noValue
+}
+
+private struct BreadthFirstTraversalState<Node> {
+    var queue: [Node]
+    var head: Int = 0
+    var complexity: Int = 0
+}
+
+internal func breadthFirstTraverse<Node>(
+    root: Node,
+    maxTraversalComplexity: Int,
+    onLimitReached: ((Int, Int) -> Void)? = nil,
+    childrenOf: @escaping (Node) -> [Node]?
+) -> AnySequence<Node> {
+    return AnySequence(sequence(state: BreadthFirstTraversalState(queue: [root])) { state -> Node? in
+        guard state.complexity < maxTraversalComplexity else {
+            let remaining = state.queue.count - state.head
+            onLimitReached?(state.complexity, remaining)
+            return nil
+        }
+
+        guard state.head < state.queue.count else {
+            return nil
+        }
+
+        let elt = state.queue[state.head]
+        state.head += 1
+        if state.head >= 64 && state.head * 2 >= state.queue.count {
+            state.queue.removeFirst(state.head)
+            state.head = 0
+        }
+
+        if let children = childrenOf(elt) {
+            state.complexity += 1
+            state.queue.append(contentsOf: children)
+        }
+        return elt
+    })
+}
+
 public extension Accessibility.Element {
     var isValid: Bool {
-        do {
-            _ = try pid()
-            return true
-        } catch {
-            logAccessibilityError("Failed to validate AX element pid for \(self): \(String(describing: error))")
-            return false
-        }
+        (try? pid()) != nil
     }
 
     var isFrameValid: Bool {
-        do {
-            _ = try self.frame()
-            return true
-        } catch {
-            logAccessibilityError("Failed to validate AX frame for \(self): \(String(describing: error))")
-            return false
-        }
+        (try? self.frame()) != nil
     }
 
     var isInViewport: Bool {
-        do {
-            return try self.frame() != CGRect.null
-        } catch {
-            logAccessibilityError("Failed to check viewport visibility for \(self): \(String(describing: error))")
-            return false
-        }
+        guard let frame = try? self.frame() else { return false }
+        return frame != CGRect.null
     }
 
     // - breadth-first, seems faster than dfs
-    // - default max complexity to 1,800; if i dump the complexity of the Messages app right now i get ~360. x10 that, should be plenty
+    // - default max complexity to 3,600; if i dump the complexity of the Messages app right now i get ~360. x10 that, should be plenty
     // - we can't turn `AXUIElement`s into e.g. `ObjectIdentifier`s and use that to track a set of seen elements and avoid cycles because
     //   the objects aren't pooled; any given instance of `AXUIElement` in memory is "transient" and another may take its place
     func recursiveChildren(maxTraversalComplexity: Int = 3_600) -> AnySequence<Accessibility.Element> {
-        // incremented for every element with children that we discover; not "depth" since it's a running tally
-        var traversalComplexity = 0
-
-        return AnySequence(sequence(state: [self] as [Accessibility.Element]) { queue -> Accessibility.Element? in
-            guard traversalComplexity < maxTraversalComplexity else {
-                let queueCount = queue.count
-                logAccessibilityError("Recursive traversal complexity limit hit (\(traversalComplexity) >= \(maxTraversalComplexity), queue count: \(queueCount)); terminating early")
-                return nil
-            }
-
-            guard !queue.isEmpty else {
-                // queue is empty, we're done
-                return nil
-            }
-
-            let elt = queue.removeFirst()
-
-            do {
-                let children = try elt.children()
-                defer { traversalComplexity += 1 }
-                queue.append(contentsOf: children)
-            } catch {
-                logAccessibilityError("Failed to fetch children for \(elt): \(String(describing: error))")
-            }
-            return elt
-        })
+        recursiveTraversal(label: "children", maxTraversalComplexity: maxTraversalComplexity) { try $0.children() }
     }
 
-    func recursiveSelectedChildren() -> AnySequence<Accessibility.Element> {
-        AnySequence(sequence(state: [self]) { queue -> Accessibility.Element? in
-            guard !queue.isEmpty else { return nil }
-            let elt = queue.removeFirst()
-            do {
-                let selectedChildren = try elt.selectedChildren()
-                queue.append(contentsOf: selectedChildren)
-            } catch {
-                logAccessibilityError("Failed to fetch selected children for \(elt): \(String(describing: error))")
+    func recursiveSelectedChildren(maxTraversalComplexity: Int = 3_600) -> AnySequence<Accessibility.Element> {
+        recursiveTraversal(label: "selected children", maxTraversalComplexity: maxTraversalComplexity) {
+            try $0.selectedChildren()
+        }
+    }
+
+    private func recursiveTraversal(
+        label: String,
+        maxTraversalComplexity: Int,
+        fetch: @escaping (Accessibility.Element) throws -> [Accessibility.Element]
+    ) -> AnySequence<Accessibility.Element> {
+        breadthFirstTraverse(
+            root: self,
+            maxTraversalComplexity: maxTraversalComplexity,
+            onLimitReached: { complexity, queueCount in
+                logAccessibilityError("Recursive \(label) traversal complexity limit hit (\(complexity) >= \(maxTraversalComplexity), queue count: \(queueCount)); terminating early")
             }
-            return elt
-        })
+        ) { elt in
+            do {
+                return try fetch(elt)
+            } catch {
+                if !isExpectedMissingAttribute(error) {
+                    logAccessibilityError("Failed to fetch \(label) for \(elt): \(String(describing: error))")
+                }
+                return nil
+            }
+        }
     }
 
     func recursivelyFindChild(withID id: String) -> Accessibility.Element? {
