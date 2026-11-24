@@ -1,15 +1,9 @@
 import ApplicationServices
 import Foundation
 
-private func printAttribute(to output: inout some TextOutputStream, name: String, value: Any?, omitTrailingSpace: Bool = false) {
+private func printAttribute(to output: inout some TextOutputStream, name: String, value: Any?) {
     guard let value else { return }
-    let valueEscaped = if let struc = Accessibility.Struct(erased: value as AnyObject) {
-        // this looks _much nicer_ compared to the default description
-        "\(struc)".xmlEscaped
-    } else {
-        "\(value)".xmlEscaped
-    }
-    print("\(name)=\(valueEscaped.quoted)", terminator: omitTrailingSpace ? "" : " ", to: &output)
+    print(" \(XMLDumper.formatAttribute(name: name, value: value))", terminator: "", to: &output)
 }
 
 public struct XMLDumper {
@@ -98,38 +92,24 @@ public struct XMLDumper {
         }
 
         let injectedComment = if let preamble { preamble.asComment + " " } else { "" }
-        print("\(whitespace)\(injectedComment)<\(role)", terminator: " ", to: &output)
+        print("\(whitespace)\(injectedComment)<\(role)", terminator: "", to: &output)
 
         // keep track of attributes that contain ui elements (as opposed to string/rect/etc.), so we can emit them as child XML elements instead of XML attributes
         var attributesPointingToElements = [String: [Accessibility.Element]]()
 
         if let supportedAttributes = try? element.supportedAttributes() {
-            let attributes = Dictionary(
-                supportedAttributes
-                    .filter { !excludedAttributes.contains($0.name.value) }
-                    .map { attribute in (attribute.name.value, try? attribute()) },
-                uniquingKeysWith: { first, second in second },
-            )
-
-            let lastNonNilIndex = Array(attributes.values).lastIndex(where: { $0 != nil })
-
-            for (index, (name, value)) in attributes.sorted(by: { $0.key < $1.key }).enumerated() {
-                if let array = value as? [Any] {
-                    guard let first = array.first, CFGetTypeID(first as CFTypeRef) == AXUIElementGetTypeID() else {
-                        continue
-                    }
-                    // attribute value is of an array of ui elements
-                    attributesPointingToElements[name, default: []].append(contentsOf: array.map {
-                        Accessibility.Element(raw: $0 as! AXUIElement)
-                    })
-                    continue
-                } else if let element = Accessibility.Element(erased: value as CFTypeRef) {
-                    // attribute value is of a singular ui element
-                    attributesPointingToElements[name, default: []].append(element)
-                    continue
+            var attributes = [String: Any]()
+            for attribute in supportedAttributes where !excludedAttributes.contains(attribute.name.value) {
+                if let value = try? attribute() {
+                    attributes[attribute.name.value] = value
                 }
+            }
 
-                printAttribute(to: &output, name: name, value: value, omitTrailingSpace: index == lastNonNilIndex)
+            let partitioned = Self.partitionAttributes(attributes)
+            attributesPointingToElements = partitioned.elements
+
+            for (name, value) in partitioned.scalar {
+                printAttribute(to: &output, name: name, value: value)
             }
         }
 
@@ -151,7 +131,7 @@ public struct XMLDumper {
 
         if includeActions, let actions = try? element.supportedActions(), !actions.isEmpty {
             for (index, action) in actions.sorted(by: { $0.name.value < $1.name.value }).enumerated() {
-                print(whitespace2 + "actions[\(index)]".asComment + "<action", terminator: " ", to: &output)
+                print(whitespace2 + "actions[\(index)]".asComment + "<action", terminator: "", to: &output)
 
                 let actionName = action.name.value
                 // some action names (maybe menu items?) are weird and look something like:
@@ -166,7 +146,7 @@ public struct XMLDumper {
                 }
 
                 if !excludedAttributes.contains(kAXDescriptionAttribute) {
-                    printAttribute(to: &output, name: "description", value: action.description, omitTrailingSpace: true)
+                    printAttribute(to: &output, name: "description", value: action.description)
                 }
                 print("></action>", to: &output)
             }
@@ -180,15 +160,16 @@ public struct XMLDumper {
 
         if includeSections, let sections = try? element.sections() as [[String: Any]] {
             for (index, section) in sections.enumerated() {
-                print(whitespace2 + "[\(index)]".asComment + " <section", terminator: " ", to: &output)
+                print(whitespace2 + "[\(index)]".asComment + " <section", terminator: "", to: &output)
                 printAttribute(to: &output, name: "uniqueID", value: section["SectionUniqueID"])
-                printAttribute(to: &output, name: "description", value: section["SectionDescription"], omitTrailingSpace: true)
+                if !excludedAttributes.contains(kAXDescriptionAttribute) {
+                    printAttribute(to: &output, name: "description", value: section["SectionDescription"])
+                }
 
-                if case let object = section["SectionObject"] as CFTypeRef, CFGetTypeID(object) == AXUIElementGetTypeID() {
+                if let rawObject = section["SectionObject"],
+                   let sectionElement = Accessibility.Element(erased: rawObject as AnyObject) {
                     print(">", to: &output)
-                    if let element = Accessibility.Element(axRaw: object) {
-                        try dump(element, to: &output, depth: depth + 1, indent: indent + 2)
-                    }
+                    try dump(sectionElement, to: &output, depth: depth + 1, indent: indent + 2, shallow: true)
                     print("\(whitespace2)</section>", to: &output)
                 } else {
                     print("></section>", to: &output)
@@ -200,6 +181,41 @@ public struct XMLDumper {
         for (index, child) in children.enumerated() {
             try dump(child, to: &output, depth: depth + 1, indent: indent + 1, preamble: "children[\(index)]")
         }
+    }
+
+    internal static func formatAttribute(name: String, value: Any) -> String {
+        // structs look _much nicer_ than their default description
+        let text = Accessibility.Struct(erased: value as AnyObject).map { "\($0)" } ?? "\(value)"
+        return "\(name)=\(text.xmlEscaped.quoted)"
+    }
+
+    internal static func partitionAttributes(
+        _ attributes: [String: Any]
+    ) -> (scalar: [(name: String, value: Any)], elements: [String: [Accessibility.Element]]) {
+        var scalar = [(name: String, value: Any)]()
+        var elements = [String: [Accessibility.Element]]()
+
+        for (name, value) in attributes.sorted(by: { $0.key < $1.key }) {
+            if let array = value as? [Any], let first = array.first {
+                // check one item before converting all of them, since most arrays aren't element arrays
+                guard Accessibility.Element(erased: first as AnyObject) != nil else {
+                    scalar.append((name, value))
+                    continue
+                }
+                let converted = array.compactMap { Accessibility.Element(erased: $0 as AnyObject) }
+                if converted.count == array.count {
+                    elements[name, default: []].append(contentsOf: converted)
+                    continue
+                }
+            } else if let element = Accessibility.Element(erased: value as AnyObject) {
+                elements[name, default: []].append(element)
+                continue
+            }
+
+            scalar.append((name, value))
+        }
+
+        return (scalar, elements)
     }
 }
 
@@ -233,19 +249,43 @@ public extension Accessibility.Element {
 
 // MARK: -
 
-private extension String {
+extension String {
     var xmlEscaped: String {
-        replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
+        var escaped = ""
+        escaped.reserveCapacity(utf8.count)
+        for scalar in unicodeScalars {
+            switch scalar {
+            case "&": escaped += "&amp;"
+            case "\"": escaped += "&quot;"
+            case "<": escaped += "&lt;"
+            case ">": escaped += "&gt;"
+            case "\r": escaped += "&#13;"
+            case "\n": escaped += "&#10;"
+            case "\t": escaped += "&#9;"
+            default: escaped.unicodeScalars.append(scalar)
+            }
+        }
+        return escaped
     }
 
     var quoted: String {
         "\"\(self)\""
     }
 
+    /// Splits every `--` run (illegal inside XML comments) as `- - -`.
+    var xmlCommentSanitized: String {
+        var sanitized = ""
+        sanitized.reserveCapacity(utf8.count)
+        for scalar in unicodeScalars {
+            if scalar == "-", sanitized.unicodeScalars.last == "-" {
+                sanitized += " "
+            }
+            sanitized.unicodeScalars.append(scalar)
+        }
+        return sanitized
+    }
+
     var asComment: String {
-        "<!-- \(self) -->"
+        "<!-- \(xmlCommentSanitized) -->"
     }
 }
