@@ -137,8 +137,6 @@ public struct Window: Hashable {
 
     public let raw: CGWindowID
 
-    private static var connection = CGSMainConnectionID()
-
     public init(raw: CGWindowID) {
         self.raw = raw
     }
@@ -180,7 +178,7 @@ public struct Window: Hashable {
             return
         } // no-op
         if space.isUnknownKind == true {
-            try move(from: curr, to: space)
+            try move(from: curr, to: space, for: connection)
         } else {
             // CGSMoveWindowsToManagedSpace can't target kind=unknown Spaces, likely because they
             // aren't "managed". It is the same function as SLSMoveWindowsToManagedSpace.
