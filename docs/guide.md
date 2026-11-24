@@ -141,6 +141,7 @@ let value = try attr()
 - `element.firstChild(withRole: \.button)` — first direct child with a given role.
 - `element.hitTest(at:)` / `element.elementAtScreenPoint(_:)` — element under a screen point. Hit testing only works on **application elements or `.systemWide`**, not arbitrary sub-elements; `elementAtScreenPoint` falls back to system-wide automatically.
 - `element.dumpXML(to:)` — pretty XML dump of a subtree (roles as tags, attributes inline, actions and sections included). Great for debugging and for feeding UI state to an LLM; supports `maxDepth`, role/attribute exclusion, and an `excludingPII:` mode that strips titles, values, selected text, file names, etc.
+- `element.printRecursively()` / `printAttributes()` / `dumpRecursively()` — quick debug listing of every action, attribute and parameterized attribute (the print forms are no-ops in release builds). `swift run AXTool dump <bundle-id>` prints the `dumpXML` output for a running app.
 - `element.copyHierarchy(requesting:options:)` — **bulk snapshot in a single IPC round-trip** via the private `AXUIElementCopyHierarchy`. Dramatically faster than per-element attribute fetches for large trees. Returns a `HierarchyResult` keyed by element, with per-attribute `AttributeEntry` values (value, true count when truncated, per-attribute error). Prefer this when you need many attributes across many elements (e.g. building an inspector); prefer plain accessors for a handful of reads.
 
 ## Escape hatches: when to go raw

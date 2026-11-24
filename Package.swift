@@ -30,6 +30,13 @@ let package = Package(
             dependencies: ["CAccessibilityControl", "WindowControl"]
         ),
         .executableTarget(
+            name: "AXTool",
+            dependencies: [
+                "AccessibilityControl",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
+        .executableTarget(
             name: "AXConstantsGenerator",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),

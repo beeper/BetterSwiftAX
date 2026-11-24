@@ -3,6 +3,7 @@
 
 #include "CGSInternal.h"
 #include <CoreGraphics/CoreGraphics.h>
+#include "SpaceBridge.h"
 
 // CGWindowListCreate is unavailable in Swift for some reason
 CFArrayRef TXTWindowListCreate(CGWindowListOption option, CGWindowID relativeToWindow);

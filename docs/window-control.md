@@ -77,6 +77,23 @@ Notes:
 - Moving windows to spaces of kind `.unknown` uses a different code path than managed spaces; `moveToSpace` picks the right one automatically.
 - `level`, `values`/`setValues`, and `compatID` expose lower-level CGS state for advanced use.
 
+### `SpaceBridge` and runtime-resolved reads
+
+`SpaceBridge` drives SkyLight's `SLSWindowManagementFallbackBridge` (resolved with `NSClassFromString`, nothing linked). It can create an intrinsically unknown, unmanaged Space with no Dock owner, which `Space(newSpaceOfKind: .unknown)` cannot:
+
+```swift
+guard let bridge = SpaceBridge(),
+      let parking = bridge.createUnknownSpace(uuid: "MyApp-Parking") else { return }
+_ = bridge.addWindow(windowID, toUnknownSpace: parking)
+// Adding keeps old memberships: verify, then remove the rest.
+let others = (Space.ids(forWindow: windowID) ?? []).filter { $0 != parking }
+_ = bridge.removeWindow(windowID, fromSpaces: others)
+```
+
+Everything except creation is enqueued asynchronously: `true` means accepted, not applied, so poll `Space.ids(forWindow:)` until it matches.
+
+The matching reads are `dlsym`-resolved and return `nil` instead of crashing when a symbol is missing: `Space.ids(forWindow:)` (mask 15, so unknown/OS Spaces are included), `Space.activeID()`, `Space.managedDisplaySpaces()`, `Space.rawType(of:)`, and `Space.values(of:)`.
+
 ## `Display`
 
 Wraps a `CGDirectDisplayID`.
